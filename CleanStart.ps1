@@ -1,16 +1,50 @@
-# CleanStart - Qeyleb's Start Menu / Taskbar customizer
-# https://github.com/Qeyleb/CleanStart
-# Version 0.1 last updated 2019/07/01
+<#
+.NOTES
+    Name: CleanStart.ps1
+    Author: Qeyleb
+    Requires: Windows 10, and the ability to run as Administrator.
+    Version: 0.2
+    Date: 2019-07-03
+    Link: https://github.com/Qeyleb/CleanStart
+.SYNOPSIS
+    Wipes and rebuilds the Start Menu and Taskbar.
+.DESCRIPTION
+    Wipes and rebuilds the Start Menu and Taskbar for the current user and all users created after this point.
+    WARNING: This will wipe out your Start Menu and Taskbar pins and change the layout.
+    By default it uses a custom layout embedded in this script.
+
+    Normally, Import-StartLayout or applying LayoutModification.xml only works for user profiles created after
+    such customizations are applied.  CleanStart forces a wipe and rebuild.
+    Great for applying a new standardized layout, or clearing the Candy Crush etc junk 'suggestions'.
+
+.PARAMETER File
+    Optional XML file containing LayoutModificationTemplate to apply instead of the built-in default.
+.INPUTS
+    None.
+.OUTPUTS
+    None.
+.EXAMPLE
+    .\CleanStart.ps1
+    This will apply the embedded layout XML to the local machine's Start Menu and Taskbar.
+.EXAMPLE
+    .\CleanStart.ps1 -File .\Layout.xml
+    This will apply Layout.xml to the local machine's Start Menu and Taskbar.
+.COMPONENT
+    Import-StartLayout
+.LINK
+    https://github.com/Qeyleb/CleanStart
+.LINK
+    https://docs.microsoft.com/en-us/windows/configuration/configure-windows-10-taskbar
+.LINK
+    https://superuser.com/a/1442733
+#>
 
 # Big thanks and credit to User9752134896231 at https://superuser.com/a/1442733
+# The starting framework of the script and the initial idea was theirs.  I can't find a way to contact them properly.
 
-# WARNING: This will wipe out your Start Menu and Taskbar pins and change the layout.
-
-# Purpose: LayoutModification.xml and Import-StartLayout only work for other user profiles...
-# Until now!  This will apply the embedded StartLayout XML to your user profile.
-# Great for applying a new standard layout, or clearing the Candy Crush etc junk.
-
-# Note: This won't work if you've got a Group Policy to apply a customized Start Menu.
+param (
+    [string]$File = ""
+    )
 
 # Edit this XML as you like.
 $startLayout = @"
@@ -62,9 +96,14 @@ $startLayout = @"
 
 $layoutFile = "$Env:TEMP\StartLayout.xml"
 
+# If the script was run with a File parameter and it is a relative path, change it to absolute
+if ("$File" -and -not (Split-Path "$File" -IsAbsolute)) {
+	$File = Resolve-Path -Path "$File"
+}
+
 # Relaunch as administrator if necessary
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-	Start-Process "$PsHome\powershell.exe" "-NoProfile -ExecutionPolicy Bypass -File `"$($script:MyInvocation.MyCommand.Path)`" `"$args`"" -Verb RunAs; exit
+	Start-Process "$PsHome\powershell.exe" "-NoProfile -ExecutionPolicy Bypass -File `"$($script:MyInvocation.MyCommand.Path)`" `"$File`"" -Verb RunAs; exit
 }
 
 # Delete temporary layout file if it already exists
@@ -72,8 +111,13 @@ if (Test-Path "$layoutFile") {
     Remove-Item "$layoutFile"
 }
 
+# If script was run with a File parameter, replace the default template with the contents of that file
+if ("$File" -like "*.xml" -and (Test-Path "$File")) {
+    $startLayout = Get-Content -Path "$File"
+}
+
 # Write the layout to a temporary file
-Add-Content "$layoutFile" $startLayout
+Add-Content -Path "$layoutFile" -Value $startLayout
 
 $regAliases = @("HKLM", "HKCU")
 
